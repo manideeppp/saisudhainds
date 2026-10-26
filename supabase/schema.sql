@@ -331,6 +331,208 @@ alter table public.byproduct_sales add constraint byproduct_sales_product_type_c
   )
 );
 
+-- -----------------------------------------------------------------------------
+-- Seasons (Kharif / Rabi) — run on existing DBs
+-- -----------------------------------------------------------------------------
+create table if not exists public.seasons (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  season_type text not null check (season_type in ('Kharif', 'Rabi')),
+  start_date date not null,
+  end_date date not null,
+  status text not null default 'active' check (status in ('active', 'closed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists seasons_one_active_idx on public.seasons (status)
+  where (status = 'active');
+
+create table if not exists public.season_opening_stocks (
+  season_id uuid primary key references public.seasons (id) on delete cascade,
+  paddy_quintals numeric(14, 3) not null default 0 check (paddy_quintals >= 0),
+  rice_quintals numeric(14, 3) not null default 0 check (rice_quintals >= 0),
+  gunny_count integer not null default 0 check (gunny_count >= 0),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.rice_millings (
+  id uuid primary key default gen_random_uuid(),
+  season_id uuid not null references public.seasons (id) on delete restrict,
+  milling_date date not null,
+  paddy_quintals numeric(14, 3) not null default 0 check (paddy_quintals >= 0),
+  rice_quintals numeric(14, 3) not null check (rice_quintals > 0),
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.expenses add column if not exists season_id uuid references public.seasons (id);
+alter table public.receivables add column if not exists season_id uuid references public.seasons (id);
+alter table public.receivables add column if not exists carried_from_id uuid references public.receivables (id);
+alter table public.farmer_paddy_intakes add column if not exists season_id uuid references public.seasons (id);
+alter table public.ikp_paddy_intakes add column if not exists season_id uuid references public.seasons (id);
+alter table public.gunny_dispatches add column if not exists season_id uuid references public.seasons (id);
+alter table public.rice_deliveries add column if not exists season_id uuid references public.seasons (id);
+alter table public.byproduct_sales add column if not exists season_id uuid references public.seasons (id);
+
+create index if not exists expenses_season_id_idx on public.expenses (season_id);
+create index if not exists receivables_season_id_idx on public.receivables (season_id);
+create index if not exists farmer_paddy_intakes_season_id_idx on public.farmer_paddy_intakes (season_id);
+create index if not exists ikp_paddy_intakes_season_id_idx on public.ikp_paddy_intakes (season_id);
+create index if not exists gunny_dispatches_season_id_idx on public.gunny_dispatches (season_id);
+create index if not exists rice_deliveries_season_id_idx on public.rice_deliveries (season_id);
+create index if not exists byproduct_sales_season_id_idx on public.byproduct_sales (season_id);
+create index if not exists rice_millings_season_id_idx on public.rice_millings (season_id);
+
+-- Default season + backfill existing rows
+do $$
+declare
+  default_season_id uuid;
+begin
+  if not exists (select 1 from public.seasons limit 1) then
+    insert into public.seasons (name, season_type, start_date, end_date, status)
+    values (
+      'Season 2025–26',
+      'Kharif',
+      '2025-06-01',
+      '2026-05-31',
+      'active'
+    )
+    returning id into default_season_id;
+
+    insert into public.season_opening_stocks (season_id) values (default_season_id);
+  else
+    select id into default_season_id from public.seasons where status = 'active' limit 1;
+    if default_season_id is null then
+      select id into default_season_id from public.seasons order by start_date desc limit 1;
+    end if;
+  end if;
+
+  update public.expenses set season_id = default_season_id where season_id is null;
+  update public.receivables set season_id = default_season_id where season_id is null;
+  update public.farmer_paddy_intakes set season_id = default_season_id where season_id is null;
+  update public.ikp_paddy_intakes set season_id = default_season_id where season_id is null;
+  update public.gunny_dispatches set season_id = default_season_id where season_id is null;
+  update public.rice_deliveries set season_id = default_season_id where season_id is null;
+  update public.byproduct_sales set season_id = default_season_id where season_id is null;
+end $$;
+
+-- Enforce season_id on new rows (nullable only during migration above)
+alter table public.expenses alter column season_id set not null;
+alter table public.receivables alter column season_id set not null;
+alter table public.farmer_paddy_intakes alter column season_id set not null;
+alter table public.ikp_paddy_intakes alter column season_id set not null;
+alter table public.gunny_dispatches alter column season_id set not null;
+alter table public.rice_deliveries alter column season_id set not null;
+alter table public.byproduct_sales alter column season_id set not null;
+
+create or replace function public.assert_season_not_closed()
+returns trigger
+language plpgsql
+as $$
+declare
+  s_status text;
+  sid uuid;
+begin
+  if tg_op = 'DELETE' then
+    sid := old.season_id;
+  else
+    sid := new.season_id;
+  end if;
+
+  if sid is null then
+    raise exception 'season_id is required';
+  end if;
+
+  select status into s_status from public.seasons where id = sid;
+  if s_status is null then
+    raise exception 'Invalid season_id';
+  end if;
+
+  if s_status = 'closed' then
+    if tg_op = 'INSERT' then
+      raise exception 'Cannot add entries to a closed season';
+    elsif tg_op = 'UPDATE' then
+      raise exception 'Cannot edit entries in a closed season';
+    elsif tg_op = 'DELETE' then
+      raise exception 'Cannot delete entries in a closed season';
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists expenses_season_guard on public.expenses;
+create trigger expenses_season_guard
+  before insert or update or delete on public.expenses
+  for each row execute function public.assert_season_not_closed();
+
+drop trigger if exists receivables_season_guard on public.receivables;
+create trigger receivables_season_guard
+  before insert or update or delete on public.receivables
+  for each row execute function public.assert_season_not_closed();
+
+drop trigger if exists farmer_paddy_season_guard on public.farmer_paddy_intakes;
+create trigger farmer_paddy_season_guard
+  before insert or update or delete on public.farmer_paddy_intakes
+  for each row execute function public.assert_season_not_closed();
+
+drop trigger if exists ikp_paddy_season_guard on public.ikp_paddy_intakes;
+create trigger ikp_paddy_season_guard
+  before insert or update or delete on public.ikp_paddy_intakes
+  for each row execute function public.assert_season_not_closed();
+
+drop trigger if exists gunny_season_guard on public.gunny_dispatches;
+create trigger gunny_season_guard
+  before insert or update or delete on public.gunny_dispatches
+  for each row execute function public.assert_season_not_closed();
+
+drop trigger if exists rice_delivery_season_guard on public.rice_deliveries;
+create trigger rice_delivery_season_guard
+  before insert or update or delete on public.rice_deliveries
+  for each row execute function public.assert_season_not_closed();
+
+drop trigger if exists byproduct_season_guard on public.byproduct_sales;
+create trigger byproduct_season_guard
+  before insert or update or delete on public.byproduct_sales
+  for each row execute function public.assert_season_not_closed();
+
+drop trigger if exists rice_milling_season_guard on public.rice_millings;
+create trigger rice_milling_season_guard
+  before insert or update or delete on public.rice_millings
+  for each row execute function public.assert_season_not_closed();
+
+drop trigger if exists seasons_set_updated_at on public.seasons;
+create trigger seasons_set_updated_at
+  before update on public.seasons
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists rice_millings_set_updated_at on public.rice_millings;
+create trigger rice_millings_set_updated_at
+  before update on public.rice_millings
+  for each row execute function public.set_updated_at();
+
+alter table public.seasons enable row level security;
+alter table public.season_opening_stocks enable row level security;
+alter table public.rice_millings enable row level security;
+
+drop policy if exists "Authenticated full access on seasons" on public.seasons;
+create policy "Authenticated full access on seasons"
+  on public.seasons for all to authenticated using (true) with check (true);
+
+drop policy if exists "Authenticated full access on season_opening_stocks" on public.season_opening_stocks;
+create policy "Authenticated full access on season_opening_stocks"
+  on public.season_opening_stocks for all to authenticated using (true) with check (true);
+
+drop policy if exists "Authenticated full access on rice_millings" on public.rice_millings;
+create policy "Authenticated full access on rice_millings"
+  on public.rice_millings for all to authenticated using (true) with check (true);
+
 -- =============================================================================
 -- Future changes: add below (example)
 -- -- 2026-11-01: alter table public.expenses add column if not exists ...

@@ -13,8 +13,9 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Modal } from '../../components/ui/Modal'
 import { Textarea } from '../../components/ui/Textarea'
-import { LoadingScreen } from '../../components/ui/LoadingScreen'
 import type { RiceDelivery } from '../../types/database'
+import { useSeasonScope } from '../../hooks/useSeasonScope'
+import { SeasonPageShell } from '../../components/SeasonPageShell'
 
 interface FormState {
   serial_no: string
@@ -56,6 +57,7 @@ function communityLabel(code: string) {
 
 export function RiceDeliveryPage() {
   const { notify } = useToast()
+  const { seasonId, seasonLoading, isSeasonClosed } = useSeasonScope()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<RiceDelivery[]>([])
   const [search, setSearch] = useState('')
@@ -63,6 +65,7 @@ export function RiceDeliveryPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const paymentPreview = useMemo(() => {
     const q = Number(form.quintals)
@@ -75,21 +78,32 @@ export function RiceDeliveryPage() {
   }, [form.quintals, form.price_per_quintal, form.amount_paid])
 
   const load = useCallback(async () => {
+    if (!seasonId) {
+      setRows([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const { data, error } = await supabase
       .from('rice_deliveries')
       .select('*')
+      .eq('season_id', seasonId)
       .order('delivery_date', { ascending: false })
       .order('serial_no', { ascending: true })
 
-    if (error) notify(error.message, 'error')
-    else setRows(data ?? [])
+    if (error) {
+      setLoadError(error.message)
+      setRows([])
+    } else {
+      setLoadError(null)
+      setRows(data ?? [])
+    }
     setLoading(false)
-  }, [notify])
+  }, [notify, seasonId])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!seasonLoading) load()
+  }, [load, seasonLoading])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -149,6 +163,11 @@ export function RiceDeliveryPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!seasonId) return
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be changed.', 'error')
+      return
+    }
     const quintals = Number(form.quintals)
     const bags = Number(form.bags) || 0
     if (!Number.isFinite(quintals) || quintals <= 0) {
@@ -186,7 +205,7 @@ export function RiceDeliveryPage() {
     setSaving(true)
     const { error } = editingId
       ? await supabase.from('rice_deliveries').update(payload).eq('id', editingId)
-      : await supabase.from('rice_deliveries').insert(payload)
+      : await supabase.from('rice_deliveries').insert({ ...payload, season_id: seasonId })
     setSaving(false)
 
     if (error) {
@@ -199,6 +218,10 @@ export function RiceDeliveryPage() {
   }
 
   async function handleDelete(id: string) {
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be deleted.', 'error')
+      return
+    }
     if (!window.confirm('Delete this rice delivery record?')) return
     const { error } = await supabase.from('rice_deliveries').delete().eq('id', id)
     if (error) notify(error.message, 'error')
@@ -208,15 +231,21 @@ export function RiceDeliveryPage() {
     }
   }
 
-  if (loading) return <LoadingScreen message="Loading rice deliveries…" />
-
   return (
+    <SeasonPageShell
+      seasonLoading={seasonLoading}
+      seasonId={seasonId}
+      loading={loading}
+      error={loadError}
+      onRetry={load}
+      loadingMessage="Loading rice deliveries…"
+    >
     <div className="space-y-6">
       <PageHeader
         title="Rice delivery"
         description="Outgoing rice — godown, variety, community (B/R), consignment & CK serial."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} disabled={isSeasonClosed}>
             <Plus className="h-4 w-4" />
             New delivery
           </Button>
@@ -454,5 +483,6 @@ export function RiceDeliveryPage() {
         </form>
       </Modal>
     </div>
+    </SeasonPageShell>
   )
 }

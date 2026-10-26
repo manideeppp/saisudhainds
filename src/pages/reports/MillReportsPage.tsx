@@ -18,8 +18,9 @@ import { Button } from '../../components/ui/Button'
 import { Card, StatCard } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
-import { LoadingScreen } from '../../components/ui/LoadingScreen'
+import { SeasonPageShell } from '../../components/SeasonPageShell'
 import { BYPRODUCT_TYPES } from '../../lib/constants'
+import { useSeasonScope } from '../../hooks/useSeasonScope'
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -28,6 +29,7 @@ const MONTHS = [
 
 export function MillReportsPage() {
   const { notify } = useToast()
+  const { seasonId, seasonLoading, activeSeason } = useSeasonScope()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
@@ -48,14 +50,14 @@ export function MillReportsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const raw = await fetchMillData(period)
+      const raw = await fetchMillData(period, seasonId)
       setData(raw)
     } catch (e) {
       notify(e instanceof Error ? e.message : 'Failed to load report data', 'error')
       setData(null)
     }
     setLoading(false)
-  }, [period, notify])
+  }, [period, notify, seasonId])
 
   useEffect(() => {
     load()
@@ -65,13 +67,17 @@ export function MillReportsPage() {
 
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 3 + i)
 
-  if (loading && !data) return <LoadingScreen message="Calculating mill report…" />
-
   return (
+    <SeasonPageShell
+      seasonLoading={seasonLoading}
+      seasonId={seasonId}
+      loading={loading && !data}
+      loadingMessage="Calculating mill report…"
+    >
     <div className="space-y-6">
       <PageHeader
         title="Mill reports & profit"
-        description="Month-wise sales, paddy cost, expenses, and estimated profit. Export PDF or Excel for your records."
+        description={`Month-wise sales, paddy cost, expenses, and estimated profit${activeSeason ? ` · ${activeSeason.name}` : ''}. Export PDF or Excel for your records.`}
       />
 
       <Card>
@@ -215,5 +221,6 @@ export function MillReportsPage() {
         </Card>
       )}
     </div>
+    </SeasonPageShell>
   )
 }

@@ -11,8 +11,9 @@ import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Textarea } from '../../components/ui/Textarea'
-import { LoadingScreen } from '../../components/ui/LoadingScreen'
 import type { IkpPaddyIntake } from '../../types/database'
+import { useSeasonScope } from '../../hooks/useSeasonScope'
+import { SeasonPageShell } from '../../components/SeasonPageShell'
 
 interface FormState {
   intake_date: string
@@ -48,6 +49,7 @@ const emptyForm = (): FormState => ({
 
 export function IkpIntakePage() {
   const { notify } = useToast()
+  const { seasonId, seasonLoading, isSeasonClosed } = useSeasonScope()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<IkpPaddyIntake[]>([])
   const [search, setSearch] = useState('')
@@ -55,6 +57,7 @@ export function IkpIntakePage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const paymentPreview = useMemo(() => {
     const q = ikpTotalQuintals(Number(form.grade_a_quintals), Number(form.common_quintals))
@@ -67,20 +70,31 @@ export function IkpIntakePage() {
   }, [form.grade_a_quintals, form.common_quintals, form.price_per_quintal, form.amount_paid])
 
   const load = useCallback(async () => {
+    if (!seasonId) {
+      setRows([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const { data, error } = await supabase
       .from('ikp_paddy_intakes')
       .select('*')
+      .eq('season_id', seasonId)
       .order('intake_date', { ascending: false })
 
-    if (error) notify(error.message, 'error')
-    else setRows(data ?? [])
+    if (error) {
+      setLoadError(error.message)
+      setRows([])
+    } else {
+      setLoadError(null)
+      setRows(data ?? [])
+    }
     setLoading(false)
-  }, [notify])
+  }, [notify, seasonId])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!seasonLoading) load()
+  }, [load, seasonLoading])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -158,6 +172,11 @@ export function IkpIntakePage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!seasonId) return
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be changed.', 'error')
+      return
+    }
     const payload = parsePayload(form)
     if (!payload.center_name) {
       notify('Center name is required.', 'error')
@@ -175,7 +194,7 @@ export function IkpIntakePage() {
     setSaving(true)
     const { error } = editingId
       ? await supabase.from('ikp_paddy_intakes').update(payload).eq('id', editingId)
-      : await supabase.from('ikp_paddy_intakes').insert(payload)
+      : await supabase.from('ikp_paddy_intakes').insert({ ...payload, season_id: seasonId })
     setSaving(false)
 
     if (error) {
@@ -188,6 +207,10 @@ export function IkpIntakePage() {
   }
 
   async function handleDelete(id: string) {
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be deleted.', 'error')
+      return
+    }
     if (!window.confirm('Delete this IKP/PACS intake record?')) return
     const { error } = await supabase.from('ikp_paddy_intakes').delete().eq('id', id)
     if (error) notify(error.message, 'error')
@@ -197,15 +220,21 @@ export function IkpIntakePage() {
     }
   }
 
-  if (loading) return <LoadingScreen message="Loading IKP/PACS intake…" />
-
   return (
+    <SeasonPageShell
+      seasonLoading={seasonLoading}
+      seasonId={seasonId}
+      loading={loading}
+      error={loadError}
+      onRetry={load}
+      loadingMessage="Loading IKP/PACS intake…"
+    >
     <div className="space-y-6">
       <PageHeader
         title="IKP / PACS intake"
         description="Paddy received from centres — Grade A & Common quantities and gunny (old / new)."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} disabled={isSeasonClosed}>
             <Plus className="h-4 w-4" />
             New intake
           </Button>
@@ -458,5 +487,6 @@ export function IkpIntakePage() {
         </form>
       </Modal>
     </div>
+    </SeasonPageShell>
   )
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
+import { isSeasonEntered } from '../lib/season/session'
 import { User, Wheat } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { APP_NAME, MILL_LOGIN_USERNAME } from '../lib/constants'
@@ -14,7 +15,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   if (session) {
-    return <Navigate to="/" replace />
+    return <Navigate to={isSeasonEntered() ? '/home' : '/season'} replace />
   }
 
   async function handleSubmit(e: React.FormEvent) {

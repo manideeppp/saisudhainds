@@ -10,8 +10,9 @@ import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Textarea } from '../../components/ui/Textarea'
-import { LoadingScreen } from '../../components/ui/LoadingScreen'
 import type { FarmerPaddyIntake } from '../../types/database'
+import { useSeasonScope } from '../../hooks/useSeasonScope'
+import { SeasonPageShell } from '../../components/SeasonPageShell'
 
 interface FormState {
   intake_date: string
@@ -43,6 +44,7 @@ const emptyForm = (): FormState => ({
 
 export function FarmerIntakePage() {
   const { notify } = useToast()
+  const { seasonId, seasonLoading, isSeasonClosed } = useSeasonScope()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<FarmerPaddyIntake[]>([])
   const [search, setSearch] = useState('')
@@ -50,6 +52,7 @@ export function FarmerIntakePage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const preview = useMemo(() => {
     const q = Number(form.quintals)
@@ -62,20 +65,31 @@ export function FarmerIntakePage() {
   }, [form.quintals, form.price_per_quintal, form.amount_paid])
 
   const load = useCallback(async () => {
+    if (!seasonId) {
+      setRows([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const { data, error } = await supabase
       .from('farmer_paddy_intakes')
       .select('*')
+      .eq('season_id', seasonId)
       .order('intake_date', { ascending: false })
 
-    if (error) notify(error.message, 'error')
-    else setRows(data ?? [])
+    if (error) {
+      setLoadError(error.message)
+      setRows([])
+    } else {
+      setLoadError(null)
+      setRows(data ?? [])
+    }
     setLoading(false)
-  }, [notify])
+  }, [notify, seasonId])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!seasonLoading) load()
+  }, [load, seasonLoading])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -125,6 +139,11 @@ export function FarmerIntakePage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!seasonId) return
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be changed.', 'error')
+      return
+    }
     if (!form.farmer_name.trim()) {
       notify('Farmer name is required.', 'error')
       return
@@ -167,6 +186,7 @@ export function FarmerIntakePage() {
       amount_paid: paid,
       due_amount,
       notes: form.notes.trim(),
+      ...(editingId ? {} : { season_id: seasonId }),
     }
 
     setSaving(true)
@@ -185,6 +205,10 @@ export function FarmerIntakePage() {
   }
 
   async function handleDelete(id: string) {
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be deleted.', 'error')
+      return
+    }
     if (!window.confirm('Delete this farmer intake record?')) return
     const { error } = await supabase.from('farmer_paddy_intakes').delete().eq('id', id)
     if (error) notify(error.message, 'error')
@@ -194,15 +218,21 @@ export function FarmerIntakePage() {
     }
   }
 
-  if (loading) return <LoadingScreen message="Loading farmer intake…" />
-
   return (
+    <SeasonPageShell
+      seasonLoading={seasonLoading}
+      seasonId={seasonId}
+      loading={loading}
+      error={loadError}
+      onRetry={load}
+      loadingMessage="Loading farmer intake…"
+    >
     <div className="space-y-6">
       <PageHeader
         title="Farmer paddy intake"
         description="Record paddy received directly from farmers — bags, quintals, payment & balance."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} disabled={isSeasonClosed}>
             <Plus className="h-4 w-4" />
             New intake
           </Button>
@@ -417,5 +447,6 @@ export function FarmerIntakePage() {
         </form>
       </Modal>
     </div>
+    </SeasonPageShell>
   )
 }

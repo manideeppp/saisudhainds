@@ -12,6 +12,7 @@ export interface Category {
 
 export interface Expense {
   id: string
+  season_id: string
   expense_date: string
   category_id: string
   description: string
@@ -28,6 +29,8 @@ export interface ExpenseWithCategory extends Expense {
 
 export interface Receivable {
   id: string
+  season_id: string
+  carried_from_id?: string | null
   date_given: string
   party_name: string
   details: string
@@ -53,6 +56,7 @@ export interface ReceivableWithPayments extends Receivable {
 
 export interface FarmerPaddyIntake {
   id: string
+  season_id: string
   intake_date: string
   farmer_name: string
   village: string
@@ -72,6 +76,7 @@ export interface FarmerPaddyIntake {
 
 export interface IkpPaddyIntake {
   id: string
+  season_id: string
   intake_date: string
   vehicle_number: string
   truck_sheet_number: string
@@ -93,6 +98,7 @@ export interface IkpPaddyIntake {
 
 export interface GunnyDispatch {
   id: string
+  season_id: string
   dispatch_date: string
   ppc_center_name: string
   mandal: string
@@ -106,6 +112,7 @@ export type RiceCommunityCode = 'B' | 'R'
 
 export interface RiceDelivery {
   id: string
+  season_id: string
   serial_no: string
   delivery_date: string
   vehicle_number: string
@@ -128,6 +135,7 @@ export interface RiceDelivery {
 
 export interface ByproductSale {
   id: string
+  season_id: string
   product_type: string
   sale_date: string
   party_name: string

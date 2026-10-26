@@ -9,8 +9,9 @@ import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Textarea } from '../../components/ui/Textarea'
-import { LoadingScreen } from '../../components/ui/LoadingScreen'
 import type { GunnyDispatch } from '../../types/database'
+import { useSeasonScope } from '../../hooks/useSeasonScope'
+import { SeasonPageShell } from '../../components/SeasonPageShell'
 
 interface FormState {
   dispatch_date: string
@@ -30,6 +31,7 @@ const emptyForm = (): FormState => ({
 
 export function GunnyDispatchPage() {
   const { notify } = useToast()
+  const { seasonId, seasonLoading, isSeasonClosed } = useSeasonScope()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<GunnyDispatch[]>([])
   const [search, setSearch] = useState('')
@@ -37,22 +39,34 @@ export function GunnyDispatchPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!seasonId) {
+      setRows([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const { data, error } = await supabase
       .from('gunny_dispatches')
       .select('*')
+      .eq('season_id', seasonId)
       .order('dispatch_date', { ascending: false })
 
-    if (error) notify(error.message, 'error')
-    else setRows(data ?? [])
+    if (error) {
+      setLoadError(error.message)
+      setRows([])
+    } else {
+      setLoadError(null)
+      setRows(data ?? [])
+    }
     setLoading(false)
-  }, [notify])
+  }, [notify, seasonId])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!seasonLoading) load()
+  }, [load, seasonLoading])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -87,6 +101,11 @@ export function GunnyDispatchPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!seasonId) return
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be changed.', 'error')
+      return
+    }
     const count = Number(form.gunny_count)
     if (!form.ppc_center_name.trim()) {
       notify('PPC center name is required.', 'error')
@@ -108,7 +127,7 @@ export function GunnyDispatchPage() {
     setSaving(true)
     const { error } = editingId
       ? await supabase.from('gunny_dispatches').update(payload).eq('id', editingId)
-      : await supabase.from('gunny_dispatches').insert(payload)
+      : await supabase.from('gunny_dispatches').insert({ ...payload, season_id: seasonId })
     setSaving(false)
 
     if (error) {
@@ -121,6 +140,10 @@ export function GunnyDispatchPage() {
   }
 
   async function handleDelete(id: string) {
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be deleted.', 'error')
+      return
+    }
     if (!window.confirm('Delete this gunny dispatch record?')) return
     const { error } = await supabase.from('gunny_dispatches').delete().eq('id', id)
     if (error) notify(error.message, 'error')
@@ -130,15 +153,21 @@ export function GunnyDispatchPage() {
     }
   }
 
-  if (loading) return <LoadingScreen message="Loading gunny dispatch…" />
-
   return (
+    <SeasonPageShell
+      seasonLoading={seasonLoading}
+      seasonId={seasonId}
+      loading={loading}
+      error={loadError}
+      onRetry={load}
+      loadingMessage="Loading gunny dispatch…"
+    >
     <div className="space-y-6">
       <PageHeader
         title="Gunny to IKP / PPC centres"
         description="Track empty gunny bags sent out to centres — date, centre, mandal & count."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} disabled={isSeasonClosed}>
             <Plus className="h-4 w-4" />
             New dispatch
           </Button>
@@ -257,5 +286,6 @@ export function GunnyDispatchPage() {
         </form>
       </Modal>
     </div>
+    </SeasonPageShell>
   )
 }

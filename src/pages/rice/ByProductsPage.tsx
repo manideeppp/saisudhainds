@@ -12,8 +12,9 @@ import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Textarea } from '../../components/ui/Textarea'
-import { LoadingScreen } from '../../components/ui/LoadingScreen'
 import type { ByproductSale } from '../../types/database'
+import { useSeasonScope } from '../../hooks/useSeasonScope'
+import { SeasonPageShell } from '../../components/SeasonPageShell'
 
 interface FormState {
   sale_date: string
@@ -35,6 +36,7 @@ const emptyForm = (): FormState => ({
 
 export function ByProductsPage({ productType }: { productType: ByproductType }) {
   const { notify } = useToast()
+  const { seasonId, seasonLoading, isSeasonClosed } = useSeasonScope()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<ByproductSale[]>([])
   const [search, setSearch] = useState('')
@@ -42,6 +44,7 @@ export function ByProductsPage({ productType }: { productType: ByproductType }) 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const preview = useMemo(() => {
     const q = Number(form.quintals)
@@ -54,21 +57,32 @@ export function ByProductsPage({ productType }: { productType: ByproductType }) 
   }, [form.quintals, form.price_per_quintal, form.amount_given])
 
   const load = useCallback(async () => {
+    if (!seasonId) {
+      setRows([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const { data, error } = await supabase
       .from('byproduct_sales')
       .select('*')
+      .eq('season_id', seasonId)
       .eq('product_type', productType)
       .order('sale_date', { ascending: false })
 
-    if (error) notify(error.message, 'error')
-    else setRows(data ?? [])
+    if (error) {
+      setLoadError(error.message)
+      setRows([])
+    } else {
+      setLoadError(null)
+      setRows(data ?? [])
+    }
     setLoading(false)
-  }, [notify, productType])
+  }, [notify, productType, seasonId])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!seasonLoading) load()
+  }, [load, seasonLoading])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -108,6 +122,11 @@ export function ByProductsPage({ productType }: { productType: ByproductType }) 
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!seasonId) return
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be changed.', 'error')
+      return
+    }
     const quintals = Number(form.quintals)
     const price = Number(form.price_per_quintal)
     const given = Number(form.amount_given) || 0
@@ -146,7 +165,7 @@ export function ByProductsPage({ productType }: { productType: ByproductType }) 
     setSaving(true)
     const { error } = editingId
       ? await supabase.from('byproduct_sales').update(payload).eq('id', editingId)
-      : await supabase.from('byproduct_sales').insert(payload)
+      : await supabase.from('byproduct_sales').insert({ ...payload, season_id: seasonId })
     setSaving(false)
 
     if (error) {
@@ -159,6 +178,10 @@ export function ByProductsPage({ productType }: { productType: ByproductType }) 
   }
 
   async function handleDelete(id: string) {
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be deleted.', 'error')
+      return
+    }
     if (!window.confirm('Delete this record?')) return
     const { error } = await supabase.from('byproduct_sales').delete().eq('id', id)
     if (error) notify(error.message, 'error')
@@ -168,15 +191,21 @@ export function ByProductsPage({ productType }: { productType: ByproductType }) 
     }
   }
 
-  if (loading) return <LoadingScreen message={`Loading ${productType}…`} />
-
   return (
+    <SeasonPageShell
+      seasonLoading={seasonLoading}
+      seasonId={seasonId}
+      loading={loading}
+      error={loadError}
+      onRetry={load}
+      loadingMessage={`Loading ${productType}…`}
+    >
     <div className="space-y-6">
       <PageHeader
         title={productType}
         description="Quintals, party, price per quintal, amount given & due."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} disabled={isSeasonClosed}>
             <Plus className="h-4 w-4" />
             New entry
           </Button>
@@ -336,5 +365,6 @@ export function ByProductsPage({ productType }: { productType: ByproductType }) 
         </form>
       </Modal>
     </div>
+    </SeasonPageShell>
   )
 }

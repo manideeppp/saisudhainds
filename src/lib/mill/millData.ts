@@ -16,40 +16,57 @@ export interface MillRawData {
   expenses: ExpenseWithCategory[]
 }
 
-export async function fetchMillData(period: DatePeriod): Promise<MillRawData> {
+export async function fetchMillData(
+  period: DatePeriod,
+  seasonId?: string | null,
+): Promise<MillRawData> {
   const { start, end } = period
 
+  let farmerQ = supabase
+    .from('farmer_paddy_intakes')
+    .select('*')
+    .gte('intake_date', start)
+    .lte('intake_date', end)
+    .order('intake_date')
+  let ikpQ = supabase
+    .from('ikp_paddy_intakes')
+    .select('*')
+    .gte('intake_date', start)
+    .lte('intake_date', end)
+    .order('intake_date')
+  let riceQ = supabase
+    .from('rice_deliveries')
+    .select('*')
+    .gte('delivery_date', start)
+    .lte('delivery_date', end)
+    .order('delivery_date')
+  let byQ = supabase
+    .from('byproduct_sales')
+    .select('*')
+    .gte('sale_date', start)
+    .lte('sale_date', end)
+    .order('sale_date')
+  let expQ = supabase
+    .from('expenses')
+    .select('*, categories(name)')
+    .gte('expense_date', start)
+    .lte('expense_date', end)
+    .order('expense_date')
+
+  if (seasonId) {
+    farmerQ = farmerQ.eq('season_id', seasonId)
+    ikpQ = ikpQ.eq('season_id', seasonId)
+    riceQ = riceQ.eq('season_id', seasonId)
+    byQ = byQ.eq('season_id', seasonId)
+    expQ = expQ.eq('season_id', seasonId)
+  }
+
   const [farmerRes, ikpRes, riceRes, byRes, expRes] = await Promise.all([
-    supabase
-      .from('farmer_paddy_intakes')
-      .select('*')
-      .gte('intake_date', start)
-      .lte('intake_date', end)
-      .order('intake_date'),
-    supabase
-      .from('ikp_paddy_intakes')
-      .select('*')
-      .gte('intake_date', start)
-      .lte('intake_date', end)
-      .order('intake_date'),
-    supabase
-      .from('rice_deliveries')
-      .select('*')
-      .gte('delivery_date', start)
-      .lte('delivery_date', end)
-      .order('delivery_date'),
-    supabase
-      .from('byproduct_sales')
-      .select('*')
-      .gte('sale_date', start)
-      .lte('sale_date', end)
-      .order('sale_date'),
-    supabase
-      .from('expenses')
-      .select('*, categories(name)')
-      .gte('expense_date', start)
-      .lte('expense_date', end)
-      .order('expense_date'),
+    farmerQ,
+    ikpQ,
+    riceQ,
+    byQ,
+    expQ,
   ])
 
   const err =

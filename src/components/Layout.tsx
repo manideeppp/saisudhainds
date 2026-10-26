@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Menu, X } from 'lucide-react'
 import { Sidebar } from './Sidebar'
-import { APP_NAME } from '../lib/constants'
+import { AppTopBar } from './layout/AppTopBar'
+import { AppBreadcrumb } from './AppBreadcrumb'
 
 export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-ivory-50 lg:flex">
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
+    <div className="min-h-screen bg-neutral-50 lg:flex">
+      <div className="app-shell-bg pointer-events-none fixed inset-0 -z-10" aria-hidden />
+
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-[17rem] lg:flex-col">
         <Sidebar />
       </aside>
 
@@ -17,7 +19,7 @@ export function Layout() {
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-forest-900/60"
+            className="absolute inset-0 bg-neutral-900/50 backdrop-blur-sm"
             aria-label="Close menu"
             onClick={() => setMobileOpen(false)}
           />
@@ -27,25 +29,11 @@ export function Layout() {
         </div>
       ) : null}
 
-      <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-forest-100 bg-ivory-50/95 px-4 py-3 backdrop-blur lg:px-8">
-          <button
-            type="button"
-            className="rounded-xl border border-forest-200 bg-white p-2 text-forest-800 lg:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-gold-600">
-              Rice Mill Finance
-            </p>
-            <h1 className="text-lg font-bold text-forest-900">{APP_NAME}</h1>
-          </div>
-        </header>
+      <div className="flex min-h-screen flex-1 flex-col lg:pl-[17rem]">
+        <AppTopBar onOpenMenu={() => setMobileOpen(true)} />
 
-        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
+        <main className="mx-auto w-full max-w-[90rem] flex-1 px-4 py-6 lg:px-6 lg:py-8">
+          <AppBreadcrumb />
           <Outlet />
         </main>
       </div>

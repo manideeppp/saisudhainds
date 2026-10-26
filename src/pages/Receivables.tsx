@@ -15,8 +15,10 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
 import { Modal } from '../components/ui/Modal'
-import { LoadingScreen } from '../components/ui/LoadingScreen'
 import type { ReceivableStatus, ReceivableWithPayments } from '../types/database'
+import { useSeasonScope } from '../hooks/useSeasonScope'
+import { SeasonPageShell } from '../components/SeasonPageShell'
+import { SeasonPageHeader } from '../components/SeasonPageHeader'
 
 interface ReceivableForm {
   date_given: string
@@ -38,6 +40,7 @@ const emptyReceivableForm = (): ReceivableForm => ({
 
 export function ReceivablesPage() {
   const { notify } = useToast()
+  const { seasonId, seasonLoading, isSeasonClosed } = useSeasonScope()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<ReceivableWithPayments[]>([])
   const [search, setSearch] = useState('')
@@ -53,25 +56,34 @@ export function ReceivablesPage() {
   const [paymentDate, setPaymentDate] = useState(toInputDate())
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentNotes, setPaymentNotes] = useState('')
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!seasonId) {
+      setRows([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const { data, error } = await supabase
       .from('receivables')
       .select('*, receivable_payments(*)')
+      .eq('season_id', seasonId)
       .order('date_given', { ascending: false })
 
     if (error) {
-      notify(error.message, 'error')
+      setLoadError(error.message)
+      setRows([])
     } else {
+      setLoadError(null)
       setRows((data ?? []) as ReceivableWithPayments[])
     }
     setLoading(false)
-  }, [notify])
+  }, [notify, seasonId])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!seasonLoading) load()
+  }, [load, seasonLoading])
 
   const enriched = useMemo(() => {
     return rows.map((r) => {
@@ -114,6 +126,11 @@ export function ReceivablesPage() {
 
   async function saveReceivable(e: React.FormEvent) {
     e.preventDefault()
+    if (!seasonId) return
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be changed.', 'error')
+      return
+    }
     const amount = Number(form.amount_due)
     if (!form.party_name.trim()) {
       notify('Party name is required.', 'error')
@@ -131,6 +148,7 @@ export function ReceivablesPage() {
       amount_due: amount,
       due_date: form.due_date,
       notes: form.notes.trim(),
+      ...(editingId ? {} : { season_id: seasonId }),
     }
 
     setSaving(true)
@@ -150,6 +168,10 @@ export function ReceivablesPage() {
   }
 
   async function deleteReceivable(id: string) {
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be deleted.', 'error')
+      return
+    }
     if (!window.confirm('Delete this receivable and all payment history?')) return
     const { error } = await supabase.from('receivables').delete().eq('id', id)
     if (error) {
@@ -208,20 +230,26 @@ export function ReceivablesPage() {
     load()
   }
 
-  if (loading) return <LoadingScreen message="Loading receivables…" />
-
   return (
+    <SeasonPageShell
+      seasonLoading={seasonLoading}
+      seasonId={seasonId}
+      loading={loading}
+      error={loadError}
+      onRetry={load}
+      loadingMessage="Loading receivables…"
+    >
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-forest-900">Receivables</h2>
-          <p className="text-sm text-forest-600">Track money owed to the mill</p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add receivable
-        </Button>
-      </div>
+      <SeasonPageHeader
+        title="Receivables"
+        description="Track money owed to the mill"
+        action={
+          <Button onClick={openCreate} disabled={isSeasonClosed}>
+            <Plus className="h-4 w-4" />
+            Add receivable
+          </Button>
+        }
+      />
 
       <Card>
         <div className="mb-4 grid gap-3 md:grid-cols-2">
@@ -441,5 +469,6 @@ export function ReceivablesPage() {
         </form>
       </Modal>
     </div>
+    </SeasonPageShell>
   )
 }

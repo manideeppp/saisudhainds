@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Pencil, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../contexts/ToastContext'
+import { PageHeader } from '../components/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
-import { LoadingScreen } from '../components/ui/LoadingScreen'
+import { PageFrame } from '../components/PageFrame'
+import { usePageLoad } from '../hooks/usePageLoad'
 import type { Category } from '../types/database'
 
 export function CategoriesPage() {
   const { notify } = useToast()
-  const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<Category[]>([])
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Category | null>(null)
@@ -19,19 +20,13 @@ export function CategoriesPage() {
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
-    setLoading(true)
     const { data, error } = await supabase.from('categories').select('*').order('name')
-    if (error) {
-      notify(error.message, 'error')
-    } else {
-      setCategories(data ?? [])
-    }
-    setLoading(false)
-  }, [notify])
+    if (error) return error.message
+    setCategories(data ?? [])
+    return null
+  }, [])
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const { loading, error: loadError, reload } = usePageLoad(load, true)
 
   function openAdd() {
     setEditing(null)
@@ -67,7 +62,7 @@ export function CategoriesPage() {
 
     notify(editing ? 'Category updated.' : 'Category added.')
     setModalOpen(false)
-    load()
+    reload()
   }
 
   async function toggleActive(cat: Category) {
@@ -81,25 +76,27 @@ export function CategoriesPage() {
       return
     }
     notify(cat.is_active ? 'Category deactivated.' : 'Category activated.')
-    load()
+    reload()
   }
 
-  if (loading) return <LoadingScreen message="Loading categories…" />
-
   return (
+    <PageFrame
+      status={loading ? 'loading' : loadError ? 'error' : 'ready'}
+      loadingMessage="Loading categories…"
+      errorMessage={loadError}
+      onRetry={reload}
+    >
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-forest-900">Category management</h2>
-          <p className="text-sm text-forest-600">
-            Deactivated categories stay on old expenses but won&apos;t appear in new entries.
-          </p>
-        </div>
-        <Button onClick={openAdd}>
-          <Plus className="h-4 w-4" />
-          Add category
-        </Button>
-      </div>
+      <PageHeader
+        title="Categories"
+        description="Deactivated categories stay on old expenses but won't appear in new entries."
+        action={
+          <Button onClick={openAdd}>
+            <Plus className="h-4 w-4" />
+            Add category
+          </Button>
+        }
+      />
 
       <Card>
         <div className="overflow-x-auto">
@@ -172,5 +169,6 @@ export function CategoriesPage() {
         </form>
       </Modal>
     </div>
+    </PageFrame>
   )
 }

@@ -1,47 +1,28 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Receipt,
-  Tags,
-  HandCoins,
-  LogOut,
-  Wheat,
-  Tractor,
-  Building2,
-  Package,
-  Truck,
-  CircleDot,
-  ChevronDown,
-  BarChart3,
-} from 'lucide-react'
-import { APP_NAME, APP_SUBTITLE, BYPRODUCT_NAV } from '../lib/constants'
+import { ChevronDown, LogOut, Wheat } from 'lucide-react'
+import { APP_NAME, APP_SUBTITLE } from '../lib/constants'
+import { APP_NAV_MODULES, NAV_HOME } from '../lib/navigation'
 import { useAuth } from '../contexts/AuthContext'
+import type { AppNavLink } from '../lib/navigation'
 
-type NavItem = {
-  to: string
-  label: string
-  icon: typeof LayoutDashboard
-  end?: boolean
+function navLinkClass(isActive: boolean) {
+  return `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+    isActive
+      ? 'bg-white/15 text-white shadow-inner ring-1 ring-white/10'
+      : 'text-forest-100 hover:bg-white/10 hover:text-white'
+  }`
 }
 
-const financeLinks: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/reports', label: 'Mill reports', icon: BarChart3 },
-  { to: '/expenses', label: 'Expenses', icon: Receipt },
-  { to: '/categories', label: 'Categories', icon: Tags },
-  { to: '/receivables', label: 'Receivables', icon: HandCoins },
-]
-
-const paddyLinks: NavItem[] = [
-  { to: '/paddy/farmer', label: 'Farmer intake', icon: Tractor },
-  { to: '/paddy/ikp', label: 'IKP / PACS intake', icon: Building2 },
-  { to: '/paddy/gunny', label: 'Gunny to centres', icon: Package },
-]
-
-const riceLinks: NavItem[] = [{ to: '/rice/delivery', label: 'Rice delivery', icon: Truck }]
-
-function NavSection({ title, links, onNavigate }: { title: string; links: NavItem[]; onNavigate?: () => void }) {
+function NavSection({
+  title,
+  links,
+  onNavigate,
+}: {
+  title: string
+  links: AppNavLink[]
+  onNavigate?: () => void
+}) {
   return (
     <div className="pt-2">
       <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-gold-400/90">
@@ -49,19 +30,7 @@ function NavSection({ title, links, onNavigate }: { title: string; links: NavIte
       </p>
       <div className="space-y-0.5">
         {links.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                isActive
-                  ? 'bg-white/15 text-white shadow-inner ring-1 ring-white/10'
-                  : 'text-forest-100 hover:bg-white/10 hover:text-white'
-              }`
-            }
-          >
+          <NavLink key={to} to={to} end={end} onClick={onNavigate} className={({ isActive }) => navLinkClass(isActive)}>
             <Icon className="h-5 w-5 shrink-0 text-gold-300" />
             {label}
           </NavLink>
@@ -71,37 +40,43 @@ function NavSection({ title, links, onNavigate }: { title: string; links: NavIte
   )
 }
 
-function ByproductAccordion({ onNavigate }: { onNavigate?: () => void }) {
+function ByproductAccordion({
+  links,
+  onNavigate,
+}: {
+  links: AppNavLink[]
+  onNavigate?: () => void
+}) {
   const location = useLocation()
   const isByproductRoute = location.pathname.startsWith('/byproducts/')
   const [open, setOpen] = useState(isByproductRoute)
+  const mod = APP_NAV_MODULES.find((m) => m.id === 'byproducts')!
+  const Icon = mod.icon
 
   return (
     <div className="pt-2">
       <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-gold-400/90">
-        By-products
+        {mod.sidebarTitle}
       </p>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-          isByproductRoute
-            ? 'bg-white/10 text-white'
-            : 'text-forest-100 hover:bg-white/10 hover:text-white'
+          isByproductRoute ? 'bg-white/10 text-white' : 'text-forest-100 hover:bg-white/10 hover:text-white'
         }`}
       >
         <span className="flex items-center gap-3">
-          <CircleDot className="h-5 w-5 shrink-0 text-gold-300" />
+          <Icon className="h-5 w-5 shrink-0 text-gold-300" />
           All by-products
         </span>
         <ChevronDown className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} />
       </button>
       {open ? (
         <div className="ml-3 mt-0.5 space-y-0.5 border-l border-white/15 pl-2">
-          {BYPRODUCT_NAV.map((b) => (
+          {links.map((b) => (
             <NavLink
-              key={b.slug}
-              to={`/byproducts/${b.slug}`}
+              key={b.to}
+              to={b.to}
               onClick={onNavigate}
               className={({ isActive }) =>
                 `block rounded-lg px-3 py-2 text-sm transition ${
@@ -130,18 +105,22 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gold-500/20 text-gold-300 ring-1 ring-gold-400/40">
             <Wheat className="h-6 w-6" />
           </div>
-          <div>
-            <p className="font-bold leading-tight">{APP_NAME}</p>
+          <div className="min-w-0">
+            <p className="font-bold leading-tight truncate">{APP_NAME}</p>
             <p className="text-xs text-forest-200">{APP_SUBTITLE}</p>
           </div>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        <NavSection title="Finance" links={financeLinks} onNavigate={onNavigate} />
-        <NavSection title="Paddy & gunny" links={paddyLinks} onNavigate={onNavigate} />
-        <NavSection title="Rice" links={riceLinks} onNavigate={onNavigate} />
-        <ByproductAccordion onNavigate={onNavigate} />
+        <NavSection title="Main" links={[NAV_HOME]} onNavigate={onNavigate} />
+        {APP_NAV_MODULES.map((mod) =>
+          mod.id === 'byproducts' ? (
+            <ByproductAccordion key={mod.id} links={mod.links} onNavigate={onNavigate} />
+          ) : (
+            <NavSection key={mod.id} title={mod.sidebarTitle} links={mod.links} onNavigate={onNavigate} />
+          ),
+        )}
       </nav>
 
       <div className="border-t border-white/10 p-3">

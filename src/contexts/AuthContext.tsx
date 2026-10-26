@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase, usernameToAuthEmail } from '../lib/supabase'
+import { clearSeasonEntered } from '../lib/season/session'
 
 interface AuthContextValue {
   session: Session | null
@@ -69,10 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       return { error: error.message }
     }
+    clearSeasonEntered()
     return { error: null }
   }, [configured])
 
   const signOut = useCallback(async () => {
+    clearSeasonEntered()
     await supabase.auth.signOut()
   }, [])
 

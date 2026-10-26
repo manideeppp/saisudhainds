@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatDate, formatINR, toInputDate } from '../lib/format'
@@ -10,8 +11,13 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
 import { Modal } from '../components/ui/Modal'
-import { LoadingScreen } from '../components/ui/LoadingScreen'
 import type { Category, ExpenseWithCategory, PaymentMode } from '../types/database'
+import { useSeasonScope } from '../hooks/useSeasonScope'
+import { SeasonPageShell } from '../components/SeasonPageShell'
+import { SeasonPageHeader } from '../components/SeasonPageHeader'
+import { usePageLoad } from '../hooks/usePageLoad'
+import { TableShell } from '../components/ui/TableShell'
+import { navigateAfterCreate } from '../lib/navigateSuccess'
 
 interface ExpenseForm {
   expense_date: string
@@ -33,7 +39,8 @@ const emptyForm = (): ExpenseForm => ({
 
 export function ExpensesPage() {
   const { notify } = useToast()
-  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
+  const { seasonId, seasonLoading, isSeasonClosed } = useSeasonScope()
   const [expenses, setExpenses] = useState<ExpenseWithCategory[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [search, setSearch] = useState('')
@@ -45,32 +52,28 @@ export function ExpensesPage() {
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
-    setLoading(true)
+    if (!seasonId) {
+      setExpenses([])
+      return null
+    }
     const [expRes, catRes] = await Promise.all([
       supabase
         .from('expenses')
         .select('*, categories(name)')
+        .eq('season_id', seasonId)
         .order('expense_date', { ascending: false }),
       supabase.from('categories').select('*').order('name'),
     ])
 
-    if (expRes.error) {
-      notify(expRes.error.message, 'error')
-    } else {
-      setExpenses((expRes.data ?? []) as ExpenseWithCategory[])
-    }
+    if (expRes.error) return expRes.error.message
+    setExpenses((expRes.data ?? []) as ExpenseWithCategory[])
 
-    if (catRes.error) {
-      notify(catRes.error.message, 'error')
-    } else {
-      setCategories(catRes.data ?? [])
-    }
-    setLoading(false)
-  }, [notify])
+    if (catRes.error) return catRes.error.message
+    setCategories(catRes.data ?? [])
+    return null
+  }, [seasonId])
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const { loading, error: loadError, reload } = usePageLoad(load, !seasonLoading && Boolean(seasonId))
 
   const activeCategories = useMemo(
     () => categories.filter((c) => c.is_active),
@@ -117,6 +120,11 @@ export function ExpensesPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+    if (!seasonId) return
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be changed.', 'error')
+      return
+    }
     const amount = Number(form.amount)
     if (!form.category_id) {
       notify('Please select a category.', 'error')
@@ -135,6 +143,7 @@ export function ExpensesPage() {
       paid_to: form.paid_to.trim(),
       payment_mode: form.payment_mode,
       amount,
+      ...(editingId ? {} : { season_id: seasonId }),
     }
 
     const { error } = editingId
@@ -148,12 +157,27 @@ export function ExpensesPage() {
       return
     }
 
-    notify(editingId ? 'Expense updated.' : 'Expense added.')
     setModalOpen(false)
-    load()
+    if (editingId) {
+      notify('Expense updated.')
+      reload()
+    } else {
+      navigateAfterCreate(navigate, {
+        title: 'Expense recorded',
+        message: `${formatINR(amount)} logged for this season.`,
+        returnTo: '/expenses',
+        returnLabel: 'View expenses',
+        listTo: '/home',
+        listLabel: 'Back to home',
+      })
+    }
   }
 
   async function handleDelete(id: string) {
+    if (isSeasonClosed) {
+      notify('This season is closed. Entries cannot be deleted.', 'error')
+      return
+    }
     if (!window.confirm('Delete this expense permanently?')) return
     const { error } = await supabase.from('expenses').delete().eq('id', id)
     if (error) {
@@ -161,23 +185,29 @@ export function ExpensesPage() {
       return
     }
     notify('Expense deleted.')
-    load()
+    reload()
   }
 
-  if (loading) return <LoadingScreen message="Loading expenses…" />
-
   return (
+    <SeasonPageShell
+      seasonLoading={seasonLoading}
+      seasonId={seasonId}
+      loading={loading}
+      error={loadError}
+      onRetry={reload}
+      loadingMessage="Loading expenses…"
+    >
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-forest-900">Expense management</h2>
-          <p className="text-sm text-forest-600">Track daily mill spending</p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add expense
-        </Button>
-      </div>
+      <SeasonPageHeader
+        title="Expenses"
+        description="Track daily mill spending"
+        action={
+          <Button onClick={openCreate} disabled={isSeasonClosed}>
+            <Plus className="h-4 w-4" />
+            Add expense
+          </Button>
+        }
+      />
 
       <Card>
         <div className="mb-4 grid gap-3 md:grid-cols-3">
@@ -213,7 +243,7 @@ export function ExpensesPage() {
           </Select>
         </div>
 
-        <div className="overflow-x-auto">
+        <TableShell>
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="border-b border-forest-100 text-forest-600">
@@ -257,7 +287,7 @@ export function ExpensesPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </TableShell>
       </Card>
 
       <Modal
@@ -328,5 +358,6 @@ export function ExpensesPage() {
         </form>
       </Modal>
     </div>
+    </SeasonPageShell>
   )
 }

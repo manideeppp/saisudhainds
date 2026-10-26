@@ -13,15 +13,15 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-forest-100 bg-white shadow-md shadow-forest-900/5 ${className}`}
+      className={`rounded-xl border border-neutral-200/90 bg-white shadow-[var(--shadow-card)] ${className}`}
     >
       {title ? (
-        <div className="flex items-center justify-between gap-3 border-b border-forest-100 px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-neutral-100 px-4 py-3">
           <h3 className="text-base font-semibold text-forest-900">{title}</h3>
           {action}
         </div>
       ) : null}
-      <div className={title ? 'p-5' : 'p-5'}>{children}</div>
+      <div className="p-4">{children}</div>
     </div>
   )
 }
@@ -44,7 +44,7 @@ export function StatCard({
     amber: 'from-amber-500 to-amber-600',
   }
   return (
-    <div className="rounded-2xl border border-forest-100 bg-white p-5 shadow-md shadow-forest-900/5">
+    <div className="rounded-xl border border-neutral-200/90 bg-white p-4 shadow-[var(--shadow-card)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm text-forest-600">{label}</p>

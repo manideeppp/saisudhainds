@@ -1,13 +1,13 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { LoadingScreen } from './ui/LoadingScreen'
+import { PageLoading } from './ui/PageState'
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
-    return <LoadingScreen message="Checking session…" />
+    return <PageLoading message="Checking session…" fullScreen />
   }
 
   if (!session) {
