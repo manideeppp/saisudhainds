@@ -62,6 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: 'Please enter your username.' }
     }
 
+    // Clear this before Supabase publishes the new session. The auth listener can
+    // render LoginPage as soon as the session changes, so clearing afterward can
+    // briefly send a freshly signed-in user straight to the previous season.
+    clearSeasonEntered()
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -70,7 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       return { error: error.message }
     }
-    clearSeasonEntered()
     return { error: null }
   }, [configured])
 

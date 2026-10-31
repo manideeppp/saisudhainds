@@ -84,7 +84,7 @@ export function SeasonSelectPage() {
           disabled={!pickedId}
           onClick={handleContinue}
         >
-          Continue to home
+          Open selected season
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
