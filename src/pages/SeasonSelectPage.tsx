@@ -7,11 +7,15 @@ import { BrandedShell, PageLoading } from '../components/ui/PageState'
 import { Button } from '../components/ui/Button'
 import { AddSeasonModal } from '../components/AddSeasonModal'
 import { SeasonCard } from '../components/SeasonCard'
+import { ManageSeasonModal } from '../components/ManageSeasonModal'
+import type { Season } from '../types/season'
 
 export function SeasonSelectPage() {
   const { seasons, loading, activeSeason, setActiveSeasonId } = useSeason()
   const [pickedId, setPickedId] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  const [managedSeason, setManagedSeason] = useState<Season | null>(null)
+  const [manageAction, setManageAction] = useState<'edit' | 'delete' | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from
@@ -25,6 +29,11 @@ export function SeasonSelectPage() {
     setActiveSeasonId(pickedId)
     markSeasonEntered()
     navigate(from && from !== '/season' ? from : '/home', { replace: true })
+  }
+
+  function openManage(season: Season, action: 'edit' | 'delete') {
+    setManagedSeason(season)
+    setManageAction(action)
   }
 
   if (loading) {
@@ -62,6 +71,8 @@ export function SeasonSelectPage() {
                 season={s}
                 selected={pickedId === s.id}
                 onSelect={() => setPickedId(s.id)}
+                onEdit={() => openManage(s, 'edit')}
+                onDelete={() => openManage(s, 'delete')}
               />
             ))}
           </div>
@@ -81,6 +92,12 @@ export function SeasonSelectPage() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={(id) => setPickedId(id)}
+      />
+      <ManageSeasonModal
+        season={managedSeason}
+        action={manageAction}
+        onClose={() => { setManagedSeason(null); setManageAction(null) }}
+        onDeleted={(id) => setPickedId((current) => current === id ? null : current)}
       />
     </BrandedShell>
   )
