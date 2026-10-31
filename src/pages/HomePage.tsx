@@ -1,24 +1,26 @@
-import { Link } from 'react-router-dom'
 import { useHomeDashboard } from '../hooks/useHomeDashboard'
 import { HeroStatTile } from '../components/home/HeroStatTile'
 import { HomeDashboardSkeleton } from '../components/home/HomeDashboardSkeleton'
 import { ProfitTrendChart } from '../components/home/ProfitTrendChart'
 import { StockByTypeChart } from '../components/home/StockByTypeChart'
-import { NeedsAttentionPanel } from '../components/home/NeedsAttentionPanel'
-import { RecentActivityTable } from '../components/home/RecentActivityTable'
 import { PageError } from '../components/ui/PageState'
-import { formatDate } from '../lib/format'
 import { Button } from '../components/ui/Button'
+import { ManageSeasonModal } from '../components/ManageSeasonModal'
+import { formatDate } from '../lib/format'
+import { CalendarDays, Pencil } from 'lucide-react'
+import { useState } from 'react'
 
 export function HomePage() {
-  const { seasonLoading, loading, error, reload, activeSeason, dashboard, isEmpty } = useHomeDashboard()
+  const { seasonLoading, loading, error, reload, activeSeason, dashboard } = useHomeDashboard()
+  const [editSeasonOpen, setEditSeasonOpen] = useState(false)
 
   if (seasonLoading || loading) {
     return (
-      <div>
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">Dashboard</h1>
-          <p className="mt-1 text-sm text-neutral-500">Loading your season snapshot…</p>
+      <div className="space-y-6 text-slate-900">
+        <header className="rounded-2xl border border-blue-100 bg-white px-5 py-5 shadow-sm">
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Mill overview</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Dashboard</h1>
+          <p className="mt-1 text-sm text-slate-500">Loading your season snapshot…</p>
         </header>
         <HomeDashboardSkeleton />
       </div>
@@ -40,64 +42,44 @@ export function HomePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">Dashboard</h1>
-          <p className="mt-1 text-sm text-neutral-600">
-            <span className="font-medium text-forest-800">{activeSeason.name}</span>
-            {' · '}
-            {activeSeason.season_type}
-            {' · '}
-            {formatDate(activeSeason.start_date)} – {formatDate(activeSeason.end_date)}
-            {activeSeason.status === 'closed' ? (
-              <span className="ml-2 rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
-                View only
-              </span>
-            ) : null}
+    <div className="space-y-6 rounded-3xl bg-gradient-to-br from-blue-50/70 via-slate-50/40 to-white p-3 text-slate-900 sm:p-5">
+      <header className="relative overflow-hidden rounded-2xl border border-blue-100 bg-white px-5 py-5 shadow-sm sm:px-6">
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 bg-gradient-to-l from-blue-50 to-transparent sm:block" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Season analytics</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Dashboard</h1>
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
+            <span className="font-semibold text-slate-800">{activeSeason.name}</span>
+            <span className="text-slate-300">·</span><span>{activeSeason.season_type}</span>
+            <span className="text-slate-300">·</span>
+            <CalendarDays className="h-3.5 w-3.5 text-blue-600" />
+            <span>{formatDate(activeSeason.start_date)} – {formatDate(activeSeason.end_date)}</span>
+            {activeSeason.status === 'closed' ? <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Closed season</span> : null}
           </p>
+          </div>
+          <Button type="button" variant="secondary" className="!border-blue-200 !text-blue-800 hover:!bg-blue-50" onClick={() => setEditSeasonOpen(true)}>
+            <Pencil className="h-4 w-4" /> Edit season
+          </Button>
         </div>
-        <Link to="/reports">
-          <Button type="button" variant="secondary">Full reports</Button>
-        </Link>
       </header>
 
-      {isEmpty ? (
-        <div className="rounded-xl border border-dashed border-neutral-300 bg-white px-6 py-12 text-center">
-          <p className="text-lg font-semibold text-neutral-900">Start recording this season</p>
-          <p className="mt-2 text-sm text-neutral-600">
-            Add farmer intake or an expense — metrics will populate instantly.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Link to="/paddy/farmer">
-              <Button type="button">Farmer intake</Button>
-            </Link>
-            <Link to="/expenses">
-              <Button type="button" variant="secondary">Add expense</Button>
-            </Link>
-          </div>
-        </div>
-      ) : null}
-
-      <section aria-label="Key metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <section aria-label="Season performance metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {dashboard.hero.map((stat) => (
           <HeroStatTile key={stat.id} stat={stat} />
         ))}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2" aria-label="Charts">
+      <section className="grid gap-4 lg:grid-cols-2" aria-label="Season analytics charts">
         <ProfitTrendChart data={dashboard.monthlyProfit} />
         <StockByTypeChart data={dashboard.stockSlices} />
       </section>
-
-      <section className="grid gap-4 lg:grid-cols-3" aria-label="Alerts and activity">
-        <div className="lg:col-span-1">
-          <NeedsAttentionPanel items={dashboard.attention} />
-        </div>
-        <div className="lg:col-span-2">
-          <RecentActivityTable rows={dashboard.activity} />
-        </div>
-      </section>
+      <ManageSeasonModal
+        season={activeSeason}
+        action={editSeasonOpen ? 'edit' : null}
+        onClose={() => setEditSeasonOpen(false)}
+        onDeleted={() => undefined}
+      />
     </div>
   )
 }

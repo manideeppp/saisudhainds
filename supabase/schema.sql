@@ -163,7 +163,7 @@ create table if not exists public.byproduct_sales (
       'Nookalu / Broken rice',
       'Param',
       'Husk',
-      'Buddibha'
+      'Boodidha'
     )
   ),
   sale_date date not null,
@@ -318,8 +318,12 @@ alter table public.rice_deliveries
 alter table public.rice_deliveries
   add column if not exists due_amount numeric(14, 2) not null default 0 check (due_amount >= 0);
 
--- Buddibha by-product (relax product_type check on existing DBs)
+-- Boodidha by-product (relax product_type check on existing DBs)
 alter table public.byproduct_sales drop constraint if exists byproduct_sales_product_type_check;
+
+update public.byproduct_sales
+set product_type = 'Boodidha'
+where product_type = 'Buddibha';
 
 alter table public.byproduct_sales add constraint byproduct_sales_product_type_check check (
   product_type in (
@@ -327,7 +331,7 @@ alter table public.byproduct_sales add constraint byproduct_sales_product_type_c
     'Nookalu / Broken rice',
     'Param',
     'Husk',
-    'Buddibha'
+    'Boodidha'
   )
 );
 

@@ -14,7 +14,7 @@ export function RecentActivityTable({ rows }: { rows: ActivityRow[] }) {
         <TableShell>
           <table className="w-full min-w-[520px] text-left text-sm">
             <thead>
-              <tr className="border-b border-neutral-200 text-neutral-500">
+              <tr className="border-b border-blue-100 bg-blue-50/60 text-slate-500">
                 <th className="px-3 py-2 font-medium">Date</th>
                 <th className="px-3 py-2 font-medium">Type</th>
                 <th className="px-3 py-2 font-medium">Detail</th>
@@ -23,15 +23,15 @@ export function RecentActivityTable({ rows }: { rows: ActivityRow[] }) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-neutral-50 hover:bg-neutral-50/80">
-                  <td className="px-3 py-2.5 whitespace-nowrap text-neutral-600">{formatDate(r.date)}</td>
+                <tr key={r.id} className="border-b border-slate-100 transition-colors hover:bg-blue-50/50">
+                  <td className="px-3 py-2.5 whitespace-nowrap text-slate-600">{formatDate(r.date)}</td>
                   <td className="px-3 py-2.5">
-                    <Link to={r.to} className="font-medium text-forest-800 hover:underline">
+                    <Link to={r.to} className="font-semibold text-blue-700 hover:text-blue-900 hover:underline">
                       {r.type}
                     </Link>
                   </td>
-                  <td className="px-3 py-2.5 text-neutral-700 max-w-[240px] truncate">{r.detail}</td>
-                  <td className="px-3 py-2.5 text-right font-medium text-neutral-900">{r.amount ?? '—'}</td>
+                  <td className="px-3 py-2.5 text-slate-700 max-w-[240px] truncate">{r.detail}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-slate-900">{r.amount ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

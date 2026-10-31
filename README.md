@@ -74,9 +74,9 @@ Optional: disable public sign-ups under **Authentication → Providers** so no o
 - **IKP / PACS intake** — Grade A & Common bags/quintals, gunny old/new
 - **Gunny dispatch** — gunnies sent to PPC centres with mandal
 - **Rice delivery** — godown, variety, B/R, consignment, CK serial
-- **By-products** — Bran/Thoudu, Nookalu, Param, Husk, Buddibha (separate pages under sidebar accordion)
+- **By-products** — Bran/Thoudu, Nookalu, Param, Husk, Boodidha (separate pages under sidebar accordion)
 - **Mill reports** — month-wise profit calculator, cash & dues, PDF profit report, full Excel workbook, CSV exports for paddy/rice/by-products
 
 All amounts use Indian locale formatting (₹, lakh/crore grouping).
 
-After pulling updates, re-run `supabase/schema.sql` in Supabase (adds **Buddibha** product type).
+After pulling updates, re-run `supabase/schema.sql` in Supabase (adds **Boodidha** product type).

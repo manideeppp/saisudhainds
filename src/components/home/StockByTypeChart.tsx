@@ -10,20 +10,20 @@ export function StockByTypeChart({ data }: { data: StockSlice[] }) {
   }))
 
   return (
-    <Card title="Stock by type" className="h-full">
+    <Card title="Current inventory" className="h-full">
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-            <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#404040' }} />
-            <YAxis tick={{ fontSize: 10, fill: '#525252' }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#475569' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
             <Tooltip
               formatter={(value, _name, item) => {
                 const label = (item?.payload as { label?: string })?.label
                 return [label ?? String(value), 'Stock']
               }}
             />
-            <Bar dataKey="value" fill="#255a43" radius={[8, 8, 0, 0]} maxBarSize={48} />
+            <Bar dataKey="value" fill="#3b82f6" radius={[8, 8, 0, 0]} maxBarSize={48} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -26,7 +26,7 @@ export const BYPRODUCT_TYPES = [
   'Nookalu / Broken rice',
   'Param',
   'Husk',
-  'Buddibha',
+  'Boodidha',
 ] as const
 
 export type ByproductType = (typeof BYPRODUCT_TYPES)[number]
@@ -36,7 +36,7 @@ export const BYPRODUCT_NAV: { slug: string; label: string; type: ByproductType }
   { slug: 'nookalu', label: 'Nookalu / Broken rice', type: 'Nookalu / Broken rice' },
   { slug: 'param', label: 'Param', type: 'Param' },
   { slug: 'husk', label: 'Husk', type: 'Husk' },
-  { slug: 'buddibha', label: 'Buddibha', type: 'Buddibha' },
+  { slug: 'buddibha', label: 'Boodidha', type: 'Boodidha' },
 ]
 
 export function byproductTypeFromSlug(slug: string): ByproductType | null {
